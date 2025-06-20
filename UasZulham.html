@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPU Scheduling Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        :root {
+            --primary: #4361ee;
+            --secondary: #3a0ca3;
+            --accent: #f72585;
+            --dark: #212529;
+            --light: #f8f9fa;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: var(--dark);
+            min-height: 100vh;
+        }
+        
+        .header-gradient {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+        }
+        
+        .process-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+        
+        .process-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .gantt-container {
+            height: 80px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .gantt-chart {
+            height: 50px;
+            margin: 15px 0;
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+        
+        .gantt-block {
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            border-right: 1px solid rgba(255, 255, 255, 0.3);
+            transition: width 0.5s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .gantt-block:hover {
+            filter: brightness(1.1);
+            z-index: 10;
+        }
+        
+        .gantt-block::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0));
+            z-index: 1;
+        }
+        
+        .timeline {
+            display: flex;
+            justify-content: space-between;
+            margin-top: -10px;
+            position: relative;
+        }
+        
+        .timeline::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background-color: #e2e8f0;
+            z-index: 0;
+        }
+        
+        .timeline-marker {
+            width: 1px;
+            height: 8px;
+            background-color: #94a3b8;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .timeline-number {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.75rem;
+            color: #64748b;
+            font-weight: 500;
+        }
+        
+        .algorithm-tab {
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .algorithm-tab:hover {
+            border-bottom-color: rgba(67, 97, 238, 0.3);
+        }
+        
+        .algorithm-tab.active {
+            border-bottom-color: var(--primary);
+            color: var(--primary);
+            font-weight: 600;
+        }
+        
+        .stats-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+        
+        .stats-card:hover {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .color-badge {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            background-color: #3a56e8;
+            transform: translateY(-1px);
+        }
+        
+        .btn-accent {
+            background-color: var(--accent);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-accent:hover {
+            background-color: #e5177a;
+            transform: translateY(-1px);
+        }
+        
+        .input-focus:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+        }
+        
+        .tooltip {
+            position: relative;
+        }
+        
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            width: 200px;
+            background-color: var(--dark);
+            color: white;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 100;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.875rem;
+            font-weight: normal;
+        }
+        
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="header-gradient text-white shadow-lg">
+        <div class="container mx-auto px-4 py-8">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0">
+                    <h1 class="text-3xl font-bold animate__animated animate__fadeIn">Zulham Solihin</h1>
+                    <h3 class="text-3xl font-bold animate__animated animate__fadeIn">11240032</h3>
+                    <h2 class="text-3xl font-bold animate__animated animate__fadeIn">CPU Scheduling Algorithms</h2>
+                    <p class="text-blue-100 mt-2 animate__animated animate__fadeIn animate__delay-1s">
+                        Interactive visualization of process scheduling techniques
+                    </p>
+                </div>
+                <div class="flex space-x-2 animate__animated animate__fadeIn animate__delay-2s">
+                    <button id="sampleDataBtn" class="px-4 py-2 bg-white text-blue-600 rounded-md font-medium shadow-sm hover:bg-blue-50 transition">
+                        Sample Data
+                    </button>
+                    <button id="resetBtn" class="px-4 py-2 bg-red-500 text-white rounded-md font-medium shadow-sm hover:bg-red-600 transition">
+                        Reset All
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto px-4 py-8">
+        <!-- Process Input Section -->
+        <div class="bg-white rounded-xl shadow-md overflow-hidden mb-8 animate__animated animate__fadeIn">
+            <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                <h2 class="text-xl font-semibold text-gray-800">Process Input</h2>
+                <p class="text-sm text-gray-600 mt-1">Add processes to simulate scheduling algorithms</p>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Process ID</label>
+                        <input type="text" id="processId" class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus focus:outline-none" placeholder="P1">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Waktu Datang</label>
+                        <input type="number" id="arrivalTime" class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus focus:outline-none" min="0" value="0">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">CPU Time</label>
+                        <input type="number" id="burstTime" class="w-full px-3 py-2 border border-gray-300 rounded-md input-focus focus:outline-none" min="1" value="1">
+                    </div>
+                    <div class="flex items-end">
+                        <button id="addProcess" class="w-full btn-primary text-white py-2 px-4 rounded-md font-medium">
+                            Add Process
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="overflow-x-auto rounded-lg border border-gray-200">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Process</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu Datang</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CPU Time</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="processTable" class="bg-white divide-y divide-gray-200">
+                            <!-- Processes will be added here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Algorithm Tabs -->
+        <div class="bg-white rounded-xl shadow-md overflow-hidden mb-8">
+            <div class="border-b border-gray-200">
+                <nav class="flex -mb-px">
+                    <button id="fifoTab" class="algorithm-tab active py-4 px-6 text-center border-transparent font-medium text-sm">
+                        FIFO (First-In-First-Out)
+                    </button>
+                    <button id="sjfTab" class="algorithm-tab py-4 px-6 text-center border-transparent font-medium text-sm">
+                        SJF (Shortest Job First)
+                    </button>
+                    <button id="srfTab" class="algorithm-tab py-4 px-6 text-center border-transparent font-medium text-sm">
+                        SRF (Shortest Remaining First)
+                    </button>
+                </nav>
+            </div>
+            
+            <!-- Algorithm Content -->
+            <div id="algorithmContent" class="p-6">
+                <!-- Content will be dynamically loaded here -->
+            </div>
+        </div>
+
+        <!-- Comparison Section -->
+        <div class="bg-white rounded-xl shadow-md overflow-hidden mb-8">
+            <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                <h1 class="text-xl font-semibold text-gray-800">Zulham Solihin</h1>
+                <h3 class="text-xl font-semibold text-gray-800">11240032</h3>
+                <h2 class="text-xl font-semibold text-gray-800">Algorithm Comparison</h2>
+                <p class="text-sm text-gray-600 mt-1">Performance metrics across different scheduling approaches</p>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="stats-card p-4 rounded-lg border border-blue-100 bg-blue-50">
+                        <h3 class="font-medium text-blue-800 mb-2 text-center">FIFO</h3>
+                        <p class="text-center text-3xl font-bold text-blue-600" id="fifoComparison">0</p>
+                        <p class="text-center text-blue-500 text-sm">Total Waiting Time</p>
+                    </div>
+                    <div class="stats-card p-4 rounded-lg border border-green-100 bg-green-50">
+                        <h3 class="font-medium text-green-800 mb-2 text-center">SJF</h3>
+                        <p class="text-center text-3xl font-bold text-green-600" id="sjfComparison">0</p>
+                        <p class="text-center text-green-500 text-sm">Total Waiting Time</p>
+                    </div>
+                    <div class="stats-card p-4 rounded-lg border border-yellow-100 bg-yellow-50">
+                        <h3 class="font-medium text-yellow-800 mb-2 text-center">SRF</h3>
+                        <p class="text-center text-3xl font-bold text-yellow-600" id="srfComparison">0</p>
+                        <p class="text-center text-yellow-500 text-sm">Total Waiting Time</p>
+                    </div>
+                </div>
+                
+                <div class="mt-6">
+                    <canvas id="comparisonChart" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="bg-white rounded-xl shadow-md overflow-hidden">
+            <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                <h2 class="text-xl font-semibold text-gray-800">Process Legend</h2>
+            </div>
+            <div class="p-6">
+                <div id="processLegend" class="flex flex-wrap gap-3">
+                    <!-- Process legend items will be added here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Process data
+            let processes = [];
+            
+            // Color palette for processes
+            const colors = [
+                '#4361ee', '#3a0ca3', '#f72585', '#7209b7', '#4cc9f0',
+                '#4895ef', '#3f37c9', '#560bad', '#b5179e', '#f72585'
+            ];
+            
+            // DOM elements
+            const processIdInput = document.getElementById('processId');
+            const arrivalTimeInput = document.getElementById('arrivalTime');
+            const burstTimeInput = document.getElementById('burstTime');
+            const addProcessBtn = document.getElementById('addProcess');
+            const processTable = document.getElementById('processTable');
+            const processLegend = document.getElementById('processLegend');
+            const sampleDataBtn = document.getElementById('sampleDataBtn');
+            const resetBtn = document.getElementById('resetBtn');
+            
+            // Algorithm tabs
+            const fifoTab = document.getElementById('fifoTab');
+            const sjfTab = document.getElementById('sjfTab');
+            const srfTab = document.getElementById('srfTab');
+            const algorithmContent = document.getElementById('algorithmContent');
+            
+            // Comparison elements
+            const fifoComparison = document.getElementById('fifoComparison');
+            const sjfComparison = document.getElementById('sjfComparison');
+            const srfComparison = document.getElementById('srfComparison');
+            
+            // Chart instance
+            let comparisonChart = null;
+            
+            // Initialize the app
+            init();
+            
+            function init() {
+                setupEventListeners();
+                updateProcessLegend();
+                renderEmptyState();
+            }
+            
+            function setupEventListeners() {
+                // Add process event listener
+                addProcessBtn.addEventListener('click', addProcess);
+                
+                // Process ID input - allow Enter key to add process
+                processIdInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        addProcess();
+                    }
+                });
+                
+                // Sample data button
+                sampleDataBtn.addEventListener('click', loadSampleData);
+                
+                // Reset button
+                resetBtn.addEventListener('click', resetAll);
+                
+                // Algorithm tabs
+                fifoTab.addEventListener('click', () => showAlgorithm('fifo'));
+                sjfTab.addEventListener('click', () => showAlgorithm('sjf'));
+                srfTab.addEventListener('click', () => showAlgorithm('srf'));
+            }
+            
+            function addProcess() {
+                const id = processIdInput.value.trim() || `P${processes.length + 1}`;
+                const arrivalTime = parseInt(arrivalTimeInput.value);
+                const burstTime = parseInt(burstTimeInput.value);
+                
+                if (burstTime < 1) {
+                    showAlert('Burst time must be at least 1', 'error');
+                    return;
+                }
+                
+                // Add process to the array
+                processes.push({
+                    id,
+                    arrivalTime,
+                    burstTime,
+                    originalBurst: burstTime,
+                    color: colors[processes.length % colors.length]
+                });
+                
+                // Update the UI
+                updateProcessTable();
+                updateProcessLegend();
+                
+                // Clear inputs
+                processIdInput.value = '';
+                arrivalTimeInput.value = '0';
+                burstTimeInput.value = '1';
+                
+                // Focus on process ID for next input
+                processIdInput.focus();
+                
+                // Run simulations
+                runSimulations();
+                
+                showAlert('Process added successfully', 'success');
+            }
+            
+            function updateProcessTable() {
+                processTable.innerHTML = '';
+                
+                if (processes.length === 0) {
+                    renderEmptyState();
+                    return;
+                }
+                
+                processes.forEach((process, index) => {
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-gray-50 transition';
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap font-medium">
+                            <span class="color-badge" style="background-color: ${process.color};"></span>
+                            ${process.id}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">${process.arrivalTime}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${process.burstTime}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <button class="text-red-600 hover:text-red-800 delete-process" data-index="${index}">
+                                Delete
+                            </button>
+                        </td>
+                    `;
+                    processTable.appendChild(row);
+                });
+                
+                // Add event listeners to delete buttons
+                document.querySelectorAll('.delete-process').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const index = parseInt(this.getAttribute('data-index'));
+                        processes.splice(index, 1);
+                        updateProcessTable();
+                        updateProcessLegend();
+                        runSimulations();
+                        showAlert('Process deleted', 'info');
+                    });
+                });
+            }
+            
+            function updateProcessLegend() {
+                processLegend.innerHTML = '';
+                
+                processes.forEach(process => {
+                    const legendItem = document.createElement('div');
+                    legendItem.className = 'flex items-center bg-gray-50 px-3 py-2 rounded-md';
+                    legendItem.innerHTML = `
+                        <span class="color-badge" style="background-color: ${process.color};"></span>
+                        <span class="text-sm font-medium">${process.id}</span>
+                        <span class="ml-2 text-xs text-gray-500">(AT: ${process.arrivalTime}, BT: ${process.burstTime})</span>
+                    `;
+                    processLegend.appendChild(legendItem);
+                });
+            }
+            
+            function renderEmptyState() {
+                if (processes.length === 0) {
+                    processTable.innerHTML = `
+                        <tr>
+                            <td colspan="4" class="px-6 py-4 text-center text-gray-500">
+                                No processes added yet. Add some processes to begin simulation.
+                            </td>
+                        </tr>
+                    `;
+                }
+            }
+            
+            function runSimulations() {
+                if (processes.length === 0) {
+                    clearAllCharts();
+                    renderEmptyState();
+                    return;
+                }
+                
+                // Reset burst times (in case they were modified by SRF)
+                processes.forEach(p => p.burstTime = p.originalBurst);
+                
+                // Run each algorithm
+                const fifoResults = runFIFO([...processes]);
+                const sjfResults = runSJF([...processes]);
+                const srfResults = runSRF([...processes]);
+                
+                // Display results
+                displayResults('fifo', fifoResults);
+                displayResults('sjf', sjfResults);
+                displayResults('srf', srfResults);
+                
+                // Update comparison
+                updateComparison(fifoResults, sjfResults, srfResults);
+                
+                // Show the currently selected algorithm
+                const activeTab = document.querySelector('.algorithm-tab.active');
+                if (activeTab) {
+                    const algorithm = activeTab.id.replace('Tab', '');
+                    showAlgorithm(algorithm);
+                }
+            }
+            
+            // FIFO (First-In-First-Out) algorithm
+            function runFIFO(processes) {
+                // Sort by arrival time
+                processes.sort((a, b) => a.arrivalTime - b.arrivalTime);
+                
+                let currentTime = 0;
+                const timeline = [];
+                const stats = {};
+                
+                processes.forEach(process => {
+                    // If process arrives after current time, wait for it
+                    if (process.arrivalTime > currentTime) {
+                        currentTime = process.arrivalTime;
+                    }
+                    
+                    // Record start and end times
+                    const startTime = currentTime;
+                    const endTime = startTime + process.burstTime;
+                    
+                    timeline.push({
+                        process: process.id,
+                        start: startTime,
+                        end: endTime,
+                        color: process.color
+                    });
+                    
+                    // Calculate waiting and turnaround times
+                    stats[process.id] = {
+                        waitingTime: startTime - process.arrivalTime,
+                        turnaroundTime: endTime - process.arrivalTime
+                    };
+                    
+                    currentTime = endTime;
+                });
+                
+                return { timeline, stats };
+            }
+            
+            // SJF (Shortest Job First) algorithm - non-preemptive
+            function runSJF(processes) {
+                // Sort by arrival time first
+                processes.sort((a, b) => a.arrivalTime - b.arrivalTime);
+                
+                let currentTime = 0;
+                const timeline = [];
+                const stats = {};
+                const queue = [];
+                
+                while (processes.length > 0 || queue.length > 0) {
+                    // Add all processes that have arrived by current time
+                    while (processes.length > 0 && processes[0].arrivalTime <= currentTime) {
+                        queue.push(processes.shift());
+                    }
+                    
+                    if (queue.length === 0) {
+                        // No processes ready, advance time to next arrival
+                        currentTime = processes[0].arrivalTime;
+                        continue;
+                    }
+                    
+                    // Sort queue by burst time (shortest first)
+                    queue.sort((a, b) => a.burstTime - b.burstTime);
+                    
+                    // Execute the shortest job
+                    const process = queue.shift();
+                    const startTime = currentTime;
+                    const endTime = startTime + process.burstTime;
+                    
+                    timeline.push({
+                        process: process.id,
+                        start: startTime,
+                        end: endTime,
+                        color: process.color
+                    });
+                    
+                    // Calculate waiting and turnaround times
+                    stats[process.id] = {
+                        waitingTime: startTime - process.arrivalTime,
+                        turnaroundTime: endTime - process.arrivalTime
+                    };
+                    
+                    currentTime = endTime;
+                }
+                
+                return { timeline, stats };
+            }
+            
+            // SRF (Shortest Remaining First) algorithm - preemptive
+            function runSRF(processes) {
+                // Sort by arrival time first
+                processes.sort((a, b) => a.arrivalTime - b.arrivalTime);
+                
+                let currentTime = 0;
+                const timeline = [];
+                const stats = {};
+                const queue = [];
+                let currentProcess = null;
+                let lastStartTime = 0;
+                
+                while (processes.length > 0 || queue.length > 0 || currentProcess !== null) {
+                    // Add all processes that have arrived by current time
+                    while (processes.length > 0 && processes[0].arrivalTime <= currentTime) {
+                        const newProcess = processes.shift();
+                        queue.push({ ...newProcess });
+                    }
+                    
+                    // Sort queue by remaining burst time (shortest first)
+                    queue.sort((a, b) => a.burstTime - b.burstTime);
+                    
+                    // Determine which process to run next
+                    let nextProcess = null;
+                    if (queue.length > 0) {
+                        nextProcess = queue[0];
+                    }
+                    
+                    // Check if we need to preempt the current process
+                    if (currentProcess !== null && nextProcess !== null && 
+                        nextProcess.burstTime < currentProcess.burstTime) {
+                        // Preempt current process
+                        queue.push({ ...currentProcess });
+                        queue.sort((a, b) => a.burstTime - b.burstTime);
+                        
+                        // Record execution up to now
+                        if (lastStartTime < currentTime) {
+                            timeline.push({
+                                process: currentProcess.id,
+                                start: lastStartTime,
+                                end: currentTime,
+                                color: currentProcess.color
+                            });
+                        }
+                        
+                        currentProcess = null;
+                        continue;
+                    }
+                    
+                    if (currentProcess === null) {
+                        if (queue.length === 0) {
+                            // No processes ready, advance time to next arrival
+                            if (processes.length > 0) {
+                                currentTime = processes[0].arrivalTime;
+                            }
+                            continue;
+                        }
+                        
+                        // Start a new process
+                        currentProcess = queue.shift();
+                        lastStartTime = currentTime;
+                    } else {
+                        // Continue running current process
+                        currentProcess.burstTime--;
+                        currentTime++;
+                        
+                        // Check if process finished
+                        if (currentProcess.burstTime === 0) {
+                            // Record execution
+                            timeline.push({
+                                process: currentProcess.id,
+                                start: lastStartTime,
+                                end: currentTime,
+                                color: currentProcess.color
+                            });
+                            
+                            // Calculate waiting and turnaround times
+                            stats[currentProcess.id] = {
+                                waitingTime: lastStartTime - currentProcess.arrivalTime,
+                                turnaroundTime: currentTime - currentProcess.arrivalTime
+                            };
+                            
+                            currentProcess = null;
+                        }
+                    }
+                }
+                
+                return { timeline, stats };
+            }
+            
+            function displayResults(algorithm, results) {
+                const { timeline, stats } = results;
+                
+                // Calculate total timespan
+                const lastEvent = timeline[timeline.length - 1];
+                const totalTime = lastEvent ? lastEvent.end : 0;
+                
+                // Calculate statistics
+                const processCount = Object.keys(stats).length;
+                let totalWaiting = 0;
+                let totalTurnaround = 0;
+                
+                for (const pid in stats) {
+                    totalWaiting += stats[pid].waitingTime;
+                    totalTurnaround += stats[pid].turnaroundTime;
+                }
+                
+                const avgWaiting = (totalWaiting / processCount).toFixed(2);
+                const avgTurnaround = (totalTurnaround / processCount).toFixed(2);
+                
+                // Update comparison numbers
+                document.getElementById(`${algorithm}Comparison`).textContent = totalWaiting;
+                
+                return totalWaiting;
+            }
+            
+            function updateComparison(fifoResults, sjfResults, srfResults) {
+                const fifoTotal = calculateTotalWaiting(fifoResults.stats);
+                const sjfTotal = calculateTotalWaiting(sjfResults.stats);
+                const srfTotal = calculateTotalWaiting(srfResults.stats);
+                
+                // Update the comparison chart
+                updateChart(fifoTotal, sjfTotal, srfTotal);
+            }
+            
+            function updateChart(fifoTotal, sjfTotal, srfTotal) {
+                const ctx = document.getElementById('comparisonChart').getContext('2d');
+                
+                // Destroy previous chart if it exists
+                if (comparisonChart) {
+                    comparisonChart.destroy();
+                }
+                
+                comparisonChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['FIFO', 'SJF', 'SRF'],
+                        datasets: [{
+                            label: 'Total Waiting Time',
+                            data: [fifoTotal, sjfTotal, srfTotal],
+                            backgroundColor: [
+                                'rgba(67, 97, 238, 0.7)',
+                                'rgba(16, 185, 129, 0.7)',
+                                'rgba(245, 158, 11, 0.7)'
+                            ],
+                            borderColor: [
+                                'rgba(67, 97, 238, 1)',
+                                'rgba(16, 185, 129, 1)',
+                                'rgba(245, 158, 11, 1)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Total Waiting Time'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `Total Waiting Time: ${context.raw}`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            function calculateTotalWaiting(stats) {
+                let total = 0;
+                for (const pid in stats) {
+                    total += stats[pid].waitingTime;
+                }
+                return total;
+            }
+            
+            function showAlgorithm(algorithm) {
+                // Update active tab
+                document.querySelectorAll('.algorithm-tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                document.getElementById(`${algorithm}Tab`).classList.add('active');
+                
+                // Generate content for the selected algorithm
+                let content = '';
+                let results = {};
+                
+                if (processes.length > 0) {
+                    // Reset burst times (in case they were modified by SRF)
+                    processes.forEach(p => p.burstTime = p.originalBurst);
+                    
+                    // Get results for this algorithm
+                    if (algorithm === 'fifo') {
+                        results = runFIFO([...processes]);
+                    } else if (algorithm === 'sjf') {
+                        results = runSJF([...processes]);
+                    } else if (algorithm === 'srf') {
+                        results = runSRF([...processes]);
+                    }
+                    
+                    // Generate Gantt chart
+                    const ganttChart = generateGanttChart(results.timeline);
+                    
+                    // Generate statistics table
+                    const statsTable = generateStatsTable(results.stats);
+                    
+                    content = `
+                        <div class="mb-6">
+                            <h3 class="text-lg font-semibold mb-2">Gantt Chart</h3>
+                            <div class="gantt-container">
+                                ${ganttChart}
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h3 class="text-lg font-semibold mb-2">Performance Metrics</h3>
+                            ${statsTable}
+                        </div>
+                    `;
+                } else {
+                    content = `
+                        <div class="text-center py-8 text-gray-500">
+                            <p>No processes added yet. Add some processes to see the ${algorithm.toUpperCase()} scheduling visualization.</p>
+                        </div>
+                    `;
+                }
+                
+                algorithmContent.innerHTML = content;
+                
+                // Add timeline markers if we have processes
+                if (processes.length > 0) {
+                    const lastEvent = results.timeline[results.timeline.length - 1];
+                    const totalTime = lastEvent ? lastEvent.end : 0;
+                    addTimelineMarkers(algorithm, totalTime);
+                }
+            }
+            
+            function generateGanttChart(timeline) {
+                if (timeline.length === 0) {
+                    return '<div class="text-center py-4 text-gray-500">No processes scheduled</div>';
+                }
+                
+                // Calculate total timespan
+                const lastEvent = timeline[timeline.length - 1];
+                const totalTime = lastEvent.end;
+                
+                // Calculate scale factor (each time unit = 40px)
+                const scale = 40;
+                const containerWidth = totalTime * scale;
+                
+                let ganttHtml = `
+                    <div class="gantt-chart" style="width: ${containerWidth}px;">
+                `;
+                
+                timeline.forEach(event => {
+                    const duration = event.end - event.start;
+                    if (duration <= 0) return;
+                    
+                    ganttHtml += `
+                        <div class="gantt-block tooltip" style="width: ${duration * scale}px; background-color: ${event.color};">
+                            ${event.process}
+                            <span class="tooltip-text">${event.process}: ${event.start} - ${event.end}</span>
+                        </div>
+                    `;
+                });
+                
+                ganttHtml += '</div>';
+                
+                return ganttHtml;
+            }
+            
+            function addTimelineMarkers(algorithm, totalTime) {
+                const timelineContainer = document.createElement('div');
+                timelineContainer.className = 'timeline';
+                
+                for (let i = 0; i <= totalTime; i++) {
+                    const marker = document.createElement('div');
+                    marker.className = 'timeline-marker';
+                    
+                    const number = document.createElement('div');
+                    number.className = 'timeline-number';
+                    number.textContent = i;
+                    
+                    marker.appendChild(number);
+                    timelineContainer.appendChild(marker);
+                }
+                
+                // Find the gantt container and append timeline
+                const ganttContainer = algorithmContent.querySelector('.gantt-container');
+                if (ganttContainer) {
+                    ganttContainer.appendChild(timelineContainer);
+                }
+            }
+            
+            function generateStatsTable(stats) {
+                let tableHtml = `
+                    <div class="overflow-x-auto rounded-lg border border-gray-200">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Process</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu Tunggu</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Turnaround Time</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                `;
+                
+                let totalWaiting = 0;
+                let totalTurnaround = 0;
+                let processCount = 0;
+                
+                for (const pid in stats) {
+                    tableHtml += `
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap font-medium">
+                                <span class="color-badge" style="background-color: ${getProcessColor(pid)};"></span>
+                                ${pid}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">${stats[pid].waitingTime}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${stats[pid].turnaroundTime}</td>
+                        </tr>
+                    `;
+                    
+                    totalWaiting += stats[pid].waitingTime;
+                    totalTurnaround += stats[pid].turnaroundTime;
+                    processCount++;
+                }
+                
+                const avgWaiting = (totalWaiting / processCount).toFixed(2);
+                const avgTurnaround = (totalTurnaround / processCount).toFixed(2);
+                
+                tableHtml += `
+                            </tbody>
+                            <tfoot class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Average</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${avgWaiting}</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${avgTurnaround}</th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                `;
+                
+                return tableHtml;
+            }
+            
+            function getProcessColor(pid) {
+                const process = processes.find(p => p.id === pid);
+                return process ? process.color : '#94a3b8';
+            }
+            
+            function loadSampleData() {
+                processes = [
+                    { id: 'P1', arrivalTime: 
+                    0, burstTime: 8, originalBurst: 8, color: colors[0] },
+                    { id: 'P2', arrivalTime: 1, burstTime: 4, originalBurst: 4, color: colors[1] },
+                    { id: 'P3', arrivalTime: 2, burstTime: 9, originalBurst: 9, color: colors[2] },
+                    { id: 'P4', arrivalTime: 3, burstTime: 5, originalBurst: 5, color: colors[3] }
+                ];
+                
+                updateProcessTable();
+                updateProcessLegend();
+                runSimulations();
+                showAlert('Sample data loaded successfully', 'success');
+            }
+            
+            function resetAll() {
+                processes = [];
+                updateProcessTable();
+                updateProcessLegend();
+                runSimulations();
+                showAlgorithm('fifo');
+                showAlert('All data has been reset', 'info');
+            }
+            
+            function clearAllCharts() {
+                ['fifo', 'sjf', 'srf'].forEach(algorithm => {
+                    document.getElementById(`${algorithm}Comparison`).textContent = '0';
+                });
+                
+                if (comparisonChart) {
+                    comparisonChart.destroy();
+                    comparisonChart = null;
+                }
+                
+                renderEmptyState();
+            }
+            
+            function showAlert(message, type) {
+                // Remove any existing alerts
+                const existingAlert = document.querySelector('.alert-message');
+                if (existingAlert) {
+                    existingAlert.remove();
+                }
+                
+                const alert = document.createElement('div');
+                alert.className = `alert-message fixed top-4 right-4 px-4 py-3 rounded-md shadow-lg text-white animate__animated animate__fadeInDown ${
+                    type === 'error' ? 'bg-red-500' : 
+                    type === 'success' ? 'bg-green-500' : 
+                    'bg-blue-500'
+                }`;
+                alert.textContent = message;
+                
+                document.body.appendChild(alert);
+                
+                // Remove after 3 seconds
+                setTimeout(() => {
+                    alert.classList.add('animate__fadeOutUp');
+                    setTimeout(() => {
+                        alert.remove();
+                    }, 500);
+                }, 3000);
+            }
+        });
+    </script>
+</body>
+</html>
