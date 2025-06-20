@@ -15,6 +15,7 @@
             --accent: #f72585;
             --dark: #212529;
             --light: #f8f9fa;
+            --rr-color: #10b981;
         }
         
         body {
@@ -175,6 +176,16 @@
             transform: translateY(-1px);
         }
         
+        .btn-rr {
+            background-color: var(--rr-color);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-rr:hover {
+            background-color: #0da271;
+            transform: translateY(-1px);
+        }
+        
         .input-focus:focus {
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
@@ -206,6 +217,47 @@
         .tooltip:hover .tooltip-text {
             visibility: visible;
             opacity: 1;
+        }
+        
+        .time-quantum-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: #f0fdf4;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #dcfce7;
+        }
+        
+        .time-quantum-control label {
+            font-weight: 500;
+            color: #065f46;
+        }
+        
+        .time-quantum-control input {
+            width: 80px;
+            padding: 6px 10px;
+            border: 1px solid #bbf7d0;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: 600;
+            color: #065f46;
+        }
+        
+        .time-quantum-control button {
+            padding: 6px 12px;
+            background-color: var(--rr-color);
+            color: white;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: background-color 0.2s;
+        }
+        
+        .time-quantum-control button:hover {
+            background-color: #059669;
         }
     </style>
 </head>
@@ -282,15 +334,18 @@
         <!-- Algorithm Tabs -->
         <div class="bg-white rounded-xl shadow-md overflow-hidden mb-8">
             <div class="border-b border-gray-200">
-                <nav class="flex -mb-px">
-                    <button id="fifoTab" class="algorithm-tab active py-4 px-6 text-center border-transparent font-medium text-sm">
+                <nav class="flex -mb-px overflow-x-auto">
+                    <button id="fifoTab" class="algorithm-tab active py-4 px-6 text-center border-transparent font-medium text-sm whitespace-nowrap">
                         FIFO (First-In-First-Out)
                     </button>
-                    <button id="sjfTab" class="algorithm-tab py-4 px-6 text-center border-transparent font-medium text-sm">
+                    <button id="sjfTab" class="algorithm-tab py-4 px-6 text-center border-transparent font-medium text-sm whitespace-nowrap">
                         SJF (Shortest Job First)
                     </button>
-                    <button id="srfTab" class="algorithm-tab py-4 px-6 text-center border-transparent font-medium text-sm">
+                    <button id="srfTab" class="algorithm-tab py-4 px-6 text-center border-transparent font-medium text-sm whitespace-nowrap">
                         SRF (Shortest Remaining First)
+                    </button>
+                    <button id="rrTab" class="algorithm-tab py-4 px-6 text-center border-transparent font-medium text-sm whitespace-nowrap">
+                        Round Robin
                     </button>
                 </nav>
             </div>
@@ -310,7 +365,7 @@
                 <p class="text-sm text-gray-600 mt-1">Performance metrics across different scheduling approaches</p>
             </div>
             <div class="p-6">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div class="stats-card p-4 rounded-lg border border-blue-100 bg-blue-50">
                         <h3 class="font-medium text-blue-800 mb-2 text-center">FIFO</h3>
                         <p class="text-center text-3xl font-bold text-blue-600" id="fifoComparison">0</p>
@@ -325,6 +380,11 @@
                         <h3 class="font-medium text-yellow-800 mb-2 text-center">SRF</h3>
                         <p class="text-center text-3xl font-bold text-yellow-600" id="srfComparison">0</p>
                         <p class="text-center text-yellow-500 text-sm">Total Waiting Time</p>
+                    </div>
+                    <div class="stats-card p-4 rounded-lg border border-rr-100 bg-green-50">
+                        <h3 class="font-medium text-green-800 mb-2 text-center">Round Robin</h3>
+                        <p class="text-center text-3xl font-bold text-green-600" id="rrComparison">0</p>
+                        <p class="text-center text-green-500 text-sm">Total Waiting Time</p>
                     </div>
                 </div>
                 
@@ -352,6 +412,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Process data
             let processes = [];
+            let timeQuantum = 4; // Default time quantum for Round Robin
             
             // Color palette for processes
             const colors = [
@@ -373,12 +434,14 @@
             const fifoTab = document.getElementById('fifoTab');
             const sjfTab = document.getElementById('sjfTab');
             const srfTab = document.getElementById('srfTab');
+            const rrTab = document.getElementById('rrTab');
             const algorithmContent = document.getElementById('algorithmContent');
             
             // Comparison elements
             const fifoComparison = document.getElementById('fifoComparison');
             const sjfComparison = document.getElementById('sjfComparison');
             const srfComparison = document.getElementById('srfComparison');
+            const rrComparison = document.getElementById('rrComparison');
             
             // Chart instance
             let comparisonChart = null;
@@ -413,6 +476,7 @@
                 fifoTab.addEventListener('click', () => showAlgorithm('fifo'));
                 sjfTab.addEventListener('click', () => showAlgorithm('sjf'));
                 srfTab.addEventListener('click', () => showAlgorithm('srf'));
+                rrTab.addEventListener('click', () => showAlgorithm('rr'));
             }
             
             function addProcess() {
@@ -526,21 +590,23 @@
                     return;
                 }
                 
-                // Reset burst times (in case they were modified by SRF)
+                // Reset burst times (in case they were modified by SRF or RR)
                 processes.forEach(p => p.burstTime = p.originalBurst);
                 
                 // Run each algorithm
                 const fifoResults = runFIFO([...processes]);
                 const sjfResults = runSJF([...processes]);
                 const srfResults = runSRF([...processes]);
+                const rrResults = runRR([...processes], timeQuantum);
                 
                 // Display results
                 displayResults('fifo', fifoResults);
                 displayResults('sjf', sjfResults);
                 displayResults('srf', srfResults);
+                displayResults('rr', rrResults);
                 
                 // Update comparison
-                updateComparison(fifoResults, sjfResults, srfResults);
+                updateComparison(fifoResults, sjfResults, srfResults, rrResults);
                 
                 // Show the currently selected algorithm
                 const activeTab = document.querySelector('.algorithm-tab.active');
@@ -727,6 +793,100 @@
                 return { timeline, stats };
             }
             
+            // Round Robin (RR) algorithm
+            function runRR(processes, quantum) {
+                // Create a copy of processes to avoid modifying originals
+                const procCopy = processes.map(p => ({ ...p }));
+                
+                // Sort by arrival time
+                procCopy.sort((a, b) => a.arrivalTime - b.arrivalTime);
+                
+                let currentTime = 0;
+                const timeline = [];
+                const stats = {};
+                const queue = [];
+                let currentProcess = null;
+                let lastStartTime = 0;
+                let remainingQuantum = quantum;
+                
+                while (procCopy.length > 0 || queue.length > 0 || currentProcess !== null) {
+                    // Add all processes that have arrived by current time
+                    while (procCopy.length > 0 && procCopy[0].arrivalTime <= currentTime) {
+                        queue.push(procCopy.shift());
+                    }
+                    
+                    if (currentProcess === null) {
+                        if (queue.length === 0) {
+                            // No processes ready, advance time to next arrival
+                            if (procCopy.length > 0) {
+                                currentTime = procCopy[0].arrivalTime;
+                                continue;
+                            } else {
+                                break; // No more processes
+                            }
+                        }
+                        
+                        // Get next process from queue
+                        currentProcess = queue.shift();
+                        lastStartTime = currentTime;
+                        remainingQuantum = quantum;
+                    }
+                    
+                    // Execute current process for 1 time unit
+                    currentProcess.burstTime--;
+                    remainingQuantum--;
+                    currentTime++;
+                    
+                    // Check if process finished
+                    if (currentProcess.burstTime === 0) {
+                        // Record execution
+                        timeline.push({
+                            process: currentProcess.id,
+                            start: lastStartTime,
+                            end: currentTime,
+                            color: currentProcess.color
+                        });
+                        
+                        // Calculate waiting and turnaround times
+                        stats[currentProcess.id] = {
+                            waitingTime: lastStartTime - currentProcess.arrivalTime,
+                            turnaroundTime: currentTime - currentProcess.arrivalTime
+                        };
+                        
+                        currentProcess = null;
+                        remainingQuantum = quantum;
+                    } else if (remainingQuantum === 0) {
+                        // Time quantum expired, preempt process
+                        timeline.push({
+                            process: currentProcess.id,
+                            start: lastStartTime,
+                            end: currentTime,
+                            color: currentProcess.color
+                        });
+                        
+                        // Add current process back to queue
+                        queue.push(currentProcess);
+                        
+                        currentProcess = null;
+                        remainingQuantum = quantum;
+                    }
+                    
+                    // Check for new arrivals at current time
+                    while (procCopy.length > 0 && procCopy[0].arrivalTime === currentTime) {
+                        queue.push(procCopy.shift());
+                    }
+                    
+                    // If we preempted and there's no current process, start next
+                    if (currentProcess === null && queue.length > 0) {
+                        currentProcess = queue.shift();
+                        lastStartTime = currentTime;
+                        remainingQuantum = quantum;
+                    }
+                }
+                
+                return { timeline, stats };
+            }
+            
             function displayResults(algorithm, results) {
                 const { timeline, stats } = results;
                 
@@ -753,16 +913,17 @@
                 return totalWaiting;
             }
             
-            function updateComparison(fifoResults, sjfResults, srfResults) {
+            function updateComparison(fifoResults, sjfResults, srfResults, rrResults) {
                 const fifoTotal = calculateTotalWaiting(fifoResults.stats);
                 const sjfTotal = calculateTotalWaiting(sjfResults.stats);
                 const srfTotal = calculateTotalWaiting(srfResults.stats);
+                const rrTotal = calculateTotalWaiting(rrResults.stats);
                 
                 // Update the comparison chart
-                updateChart(fifoTotal, sjfTotal, srfTotal);
+                updateChart(fifoTotal, sjfTotal, srfTotal, rrTotal);
             }
             
-            function updateChart(fifoTotal, sjfTotal, srfTotal) {
+            function updateChart(fifoTotal, sjfTotal, srfTotal, rrTotal) {
                 const ctx = document.getElementById('comparisonChart').getContext('2d');
                 
                 // Destroy previous chart if it exists
@@ -773,19 +934,21 @@
                 comparisonChart = new Chart(ctx, {
                     type: 'bar',
                     data: {
-                        labels: ['FIFO', 'SJF', 'SRF'],
+                        labels: ['FIFO', 'SJF', 'SRF', 'Round Robin'],
                         datasets: [{
                             label: 'Total Waiting Time',
-                            data: [fifoTotal, sjfTotal, srfTotal],
+                            data: [fifoTotal, sjfTotal, srfTotal, rrTotal],
                             backgroundColor: [
                                 'rgba(67, 97, 238, 0.7)',
                                 'rgba(16, 185, 129, 0.7)',
-                                'rgba(245, 158, 11, 0.7)'
+                                'rgba(245, 158, 11, 0.7)',
+                                'rgba(16, 185, 129, 0.7)'
                             ],
                             borderColor: [
                                 'rgba(67, 97, 238, 1)',
                                 'rgba(16, 185, 129, 1)',
-                                'rgba(245, 158, 11, 1)'
+                                'rgba(245, 158, 11, 1)',
+                                'rgba(5, 150, 105, 1)'
                             ],
                             borderWidth: 1
                         }]
@@ -847,6 +1010,8 @@
                         results = runSJF([...processes]);
                     } else if (algorithm === 'srf') {
                         results = runSRF([...processes]);
+                    } else if (algorithm === 'rr') {
+                        results = runRR([...processes], timeQuantum);
                     }
                     
                     // Generate Gantt chart
@@ -855,7 +1020,20 @@
                     // Generate statistics table
                     const statsTable = generateStatsTable(results.stats);
                     
+                    // Special controls for Round Robin
+                    let rrControls = '';
+                    if (algorithm === 'rr') {
+                        rrControls = `
+                            <div class="time-quantum-control">
+                                <label for="timeQuantum">Time Quantum:</label>
+                                <input type="number" id="timeQuantum" min="1" value="${timeQuantum}">
+                                <button id="updateQuantumBtn">Update</button>
+                            </div>
+                        `;
+                    }
+                    
                     content = `
+                        ${rrControls}
                         <div class="mb-6">
                             <h3 class="text-lg font-semibold mb-2">Gantt Chart</h3>
                             <div class="gantt-container">
@@ -877,6 +1055,20 @@
                 }
                 
                 algorithmContent.innerHTML = content;
+                
+                // Add event listener for quantum update if needed
+                if (algorithm === 'rr') {
+                    document.getElementById('updateQuantumBtn').addEventListener('click', function() {
+                        const newQuantum = parseInt(document.getElementById('timeQuantum').value);
+                        if (newQuantum > 0) {
+                            timeQuantum = newQuantum;
+                            runSimulations();
+                            showAlert(`Time quantum updated to ${timeQuantum}`, 'success');
+                        } else {
+                            showAlert('Time quantum must be at least 1', 'error');
+                        }
+                    });
+                }
                 
                 // Add timeline markers if we have processes
                 if (processes.length > 0) {
@@ -1004,8 +1196,7 @@
             
             function loadSampleData() {
                 processes = [
-                    { id: 'P1', arrivalTime: 
-                    0, burstTime: 8, originalBurst: 8, color: colors[0] },
+                    { id: 'P1', arrivalTime: 0, burstTime: 8, originalBurst: 8, color: colors[0] },
                     { id: 'P2', arrivalTime: 1, burstTime: 4, originalBurst: 4, color: colors[1] },
                     { id: 'P3', arrivalTime: 2, burstTime: 9, originalBurst: 9, color: colors[2] },
                     { id: 'P4', arrivalTime: 3, burstTime: 5, originalBurst: 5, color: colors[3] }
@@ -1019,6 +1210,7 @@
             
             function resetAll() {
                 processes = [];
+                timeQuantum = 4;
                 updateProcessTable();
                 updateProcessLegend();
                 runSimulations();
@@ -1027,7 +1219,7 @@
             }
             
             function clearAllCharts() {
-                ['fifo', 'sjf', 'srf'].forEach(algorithm => {
+                ['fifo', 'sjf', 'srf', 'rr'].forEach(algorithm => {
                     document.getElementById(`${algorithm}Comparison`).textContent = '0';
                 });
                 
